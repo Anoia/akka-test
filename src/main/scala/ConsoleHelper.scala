@@ -1,5 +1,5 @@
 object ConsoleHelper {
 
-  def init() = Boot.main(Array.empty)
+  def init(): Unit = Boot.main(Array.empty)
 
 }
