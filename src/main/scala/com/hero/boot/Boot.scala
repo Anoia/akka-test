@@ -2,9 +2,11 @@ package com.hero.boot
 
 import akka.actor.{ActorRef, ActorSystem, Props}
 import akka.http.scaladsl.Http
+import akka.http.scaladsl.server.Directives._
+import akka.http.scaladsl.server.Route
 import akka.stream.ActorMaterializer
 import akka.util.Timeout
-import com.hero.actors.ApiActor
+import com.hero.actors.{ApiActor, UserSupervisor}
 import com.hero.route.HelloUserRoute
 
 import scala.concurrent.duration._
@@ -23,15 +25,16 @@ object Boot extends App {
 }
 
 class Boot() extends HelloUserRoute {
-  implicit val timeout: Timeout = Timeout(5 seconds)
+  override implicit val timeout: Timeout = Timeout(5 seconds)
   implicit val system: ActorSystem = ActorSystem("AkkaTestSystem")
-  // default Actor constructor
-  override val apiActor: ActorRef = system.actorOf(Props[ApiActor], name = "Api")
-  implicit val materializer: ActorMaterializer = ActorMaterializer()
+  val userSupervisor: ActorRef = system.actorOf(Props[UserSupervisor], name = "UserSupervisor")
+  override val apiActor: ActorRef = system.actorOf(Props(classOf[ApiActor], userSupervisor), name = "Api")
+  override implicit val materializer: ActorMaterializer = ActorMaterializer()
 
   implicit val executionContext: ExecutionContextExecutor = system.dispatcher
+  val route: Route = helloUserRoute ~ handleRequestRoute
 
-  val bindingFuture: Future[Http.ServerBinding] = Http().bindAndHandle(helloUserRoute, "localhost", 8080)
+  val bindingFuture: Future[Http.ServerBinding] = Http().bindAndHandle(route, "localhost", 8080)
 
   def stop(): Unit = {
     println("shutting down..")
