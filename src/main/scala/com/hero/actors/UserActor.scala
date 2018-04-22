@@ -1,10 +1,11 @@
 package com.hero.actors
 
-import akka.actor.{Actor, ActorLogging, ActorRef, Props, Stash}
+import akka.actor.{Actor, ActorLogging, ActorRef, Props, ReceiveTimeout, Stash}
 import com.hero.Stuff.{ActionWithPlayer, Player, Session, UserAction}
 import com.hero.actors.UserActor.{Hello, Initialize}
 
 import scala.concurrent.Future
+import scala.concurrent.duration._
 
 object UserActor {
 
@@ -60,19 +61,25 @@ class UserActor(userId: String) extends Actor with ActorLogging with Stash {
     case action: UserAction =>
       //tell some actor to do something, expect user result
       game ! ActionWithPlayer(session.player, action)
+      context.setReceiveTimeout(1 seconds)
       context.become(waitForResponseBehavior(session, sender))
     case result: Player => log error s"received result in handleNewMessageBehavior? $result"
-    case _ => log error "unexpected message"
+    case m => log error s"unexpected message: $m"
 
   }
 
   def waitForResponseBehavior(session: Session, replyTo: ActorRef): Receive = {
     case p: Player =>
       log info "received user result"
+      context.setReceiveTimeout(Duration.Undefined)
       val updatedSession = session.copy(player = p)
       unstashAll()
       context.become(handleNewMessageBehavior(updatedSession))
       replyTo ! updatedSession.player
+    case _: ReceiveTimeout =>
+      log error "response did not arrive on time!"
+      context.setReceiveTimeout(Duration.Undefined)
+      throw new RuntimeException("Receive timed out")
     case m =>
       log info s"stashing message while processing a different one: $m"
       stash()
