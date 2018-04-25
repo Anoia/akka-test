@@ -85,6 +85,8 @@ class UserActor(userId: String) extends Actor with ActorLogging with Stash {
     case _: ReceiveTimeout =>
       log error "response did not arrive on time! either takes to long or crashed, at least sth unexpected. return generic error to app"
       context.setReceiveTimeout(Duration.Undefined)
+      unstashAll()
+      context.become(handleNewMessageBehavior(session))
       replyTo ! "error"
     case m =>
       log info s"stashing message while processing a different one: $m"
