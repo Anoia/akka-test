@@ -3,11 +3,12 @@ package com.hero.actors
 import akka.actor.{Actor, ActorLogging, ActorRef}
 import akka.pattern.ask
 import akka.util.Timeout
-import com.hero.Stuff.{Player, UserAction}
+import com.hero.Stuff.{AddGiftRequest, Player, SetName, UserAction}
 import com.hero.actors.ApiActor.{HelloUser, UserRequest}
 import com.hero.actors.UserActor.Hello
 import com.hero.actors.UserSupervisor.GetUserActorRef
 
+import scala.concurrent.Future
 import scala.concurrent.duration._
 
 object ApiActor {
@@ -35,10 +36,23 @@ class ApiActor(userSupervisor: ActorRef) extends Actor with ActorLogging {
 
     case UserRequest(userId, action) =>
       val replyTo = sender
+
       for {
         ref <- (userSupervisor ? GetUserActorRef(userId)).mapTo[ActorRef]
         result <- (ref ? action).mapTo[Player]
-      } yield replyTo ! result
+      } yield {
+        replyTo ! result
+        ref ! AddGiftRequest("firstgift")
+        ref ! AddGiftRequest("secondgift")
+        ref ! Hello("test2")
+        ref ! AddGiftRequest("thirdgift")
+        ref ! AddGiftRequest("4thgift")
+        ref ! AddGiftRequest("5thggift")
+      }
+
+    case p:Player => s"got new state: $p"
+
+    case s:String => log info s"Received message: $s"
   }
 
 

@@ -58,8 +58,10 @@ class UserActor(userId: String) extends Actor with ActorLogging with Stash {
 
   def handleNewMessageBehavior(session: Session): Receive = {
     case Hello(msg) => log.info(s"HelloUser:$msg")
+                sender ! "done"
     case action: UserAction =>
       //tell some actor to do something, expect user result
+      log info s"handling new userAction:$action"
       game ! ActionWithPlayer(session.player, action)
       context.setReceiveTimeout(1 seconds)
       context.become(waitForResponseBehavior(session, sender))
@@ -70,16 +72,20 @@ class UserActor(userId: String) extends Actor with ActorLogging with Stash {
 
   def waitForResponseBehavior(session: Session, replyTo: ActorRef): Receive = {
     case p: Player =>
-      log info "received user result"
+      log info s"received user result: $p"
       context.setReceiveTimeout(Duration.Undefined)
       val updatedSession = session.copy(player = p)
+      log info "updated session, unstashing all messages"
       unstashAll()
       context.become(handleNewMessageBehavior(updatedSession))
       replyTo ! updatedSession.player
+    case s:String =>
+      log info s"Received message: $s"
+      replyTo ! s
     case _: ReceiveTimeout =>
-      log error "response did not arrive on time!"
+      log error "response did not arrive on time! either takes to long or crashed, at least sth unexpected. return generic error to app"
       context.setReceiveTimeout(Duration.Undefined)
-      throw new RuntimeException("Receive timed out")
+      replyTo ! "error"
     case m =>
       log info s"stashing message while processing a different one: $m"
       stash()
